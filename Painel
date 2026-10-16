@@ -1,0 +1,413 @@
+--[[
+    PAINEL DARK V2 ATUALIZADO - MM2 Ultra Edition
+    Estética: Red & Black (Dark Mode)
+    Status: Full Fix & Tab System
+]]
+
+-- Configurações de Cores
+local Theme = {
+    MainBG = Color3.fromRGB(10, 10, 10),
+    GlassBG = Color3.fromRGB(20, 20, 20),
+    Accent = Color3.fromRGB(255, 0, 0),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextMuted = Color3.fromRGB(180, 180, 180),
+    Border = Color3.fromRGB(60, 0, 0),
+    FOVColor = Color3.fromRGB(255, 0, 0),
+    
+    Murder = Color3.fromRGB(255, 0, 0),
+    Sheriff = Color3.fromRGB(0, 150, 255),
+    Innocent = Color3.fromRGB(0, 255, 100),
+    Gun = Color3.fromRGB(255, 255, 0)
+}
+
+local CORRECT_KEY = "DARK"
+local DISCORD_LINK = "https://discord.gg/qfj8pQcpD"
+
+-- Estados Globais (Iniciam DESATIVADOS para evitar bugs no load)
+getgenv().DZ_Aimbot = false
+getgenv().DZ_AutoGun = false
+getgenv().DZ_AimSaliente = false
+getgenv().DZ_ESP_Inno = false
+getgenv().DZ_ESP_Sheriff = false
+getgenv().DZ_ESP_Murder = false
+getgenv().DZ_ESP_Gun = false
+
+-- Serviços
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Utilitário de Segurança para Parent
+local function SafeParent(gui)
+    pcall(function()
+        gui.Parent = game:GetService("CoreGui")
+    end)
+    if not gui.Parent then
+        gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    end
+end
+
+-- Utilitário para Arrastar (Versão Estável)
+local function MakeDraggable(gui)
+    local dragging, dragInput, dragStart, startPos
+    gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = gui.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    gui.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    RunService.RenderStepped:Connect(function()
+        if dragging and dragInput and dragStart and startPos then
+            local delta = dragInput.Position - dragStart
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+-- Lógica de FOV
+local function GetBestTarget()
+    local closest = nil
+    local shortestDistance = math.huge
+    local isMurderer = false
+
+    -- Verifica se o LocalPlayer é o Murderer (tem faca)
+    local myChar = LocalPlayer.Character
+    if myChar and myChar:FindFirstChild("Knife") then
+        isMurderer = true
+    end
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local dist = (LocalPlayer.Character.HumanoidRootPart.Position - player.Character.HumanoidRootPart.Position).Magnitude
+            
+            if not isMurderer then
+                -- Se eu não sou murder, priorizo achar o Murderer
+                if player.Character:FindFirstChild("Knife") then
+                    return player
+                end
+            end
+
+            if dist < shortestDistance then
+                closest = player
+                shortestDistance = dist
+            end
+        end
+    end
+    return closest
+end
+
+-- Aimbot Hook
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    if not checkcaller() and method == "FireServer" and getgenv().DZ_AimSaliente then
+        local eventName = self.Name:lower()
+        if eventName:find("shoot") or eventName:find("fire") or eventName:find("throw") or eventName:find("attack") then
+            local target = GetBestTarget()
+            if target and target.Character and target.Character:FindFirstChild("Head") then
+                args[1] = target.Character.Head.Position
+                return oldNamecall(self, unpack(args))
+            end
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+
+-- Auto Get Gun
+task.spawn(function()
+    while task.wait() do
+        if getgenv().DZ_AutoGun then
+            pcall(function()
+                local char = LocalPlayer.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local hasGun = LocalPlayer.Backpack:FindFirstChild("Gun") or char:FindFirstChild("Gun")
+                    if not hasGun then
+                        for _, v in pairs(workspace:GetDescendants()) do
+                            if (v.Name == "Gun" or v.Name == "DroppedGun") and v:IsA("BasePart") then
+                                char.HumanoidRootPart.CFrame = v.CFrame
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- ESP System
+local function ApplyESP(player)
+    local function Setup(char)
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "DZ_ESP"
+        highlight.Parent = char
+        
+        local conn
+        conn = RunService.Heartbeat:Connect(function()
+            local role = "Innocent"
+            if char:FindFirstChild("Knife") or (player.Backpack and player.Backpack:FindFirstChild("Knife")) then role = "Murder"
+            elseif char:FindFirstChild("Gun") or (player.Backpack and player.Backpack:FindFirstChild("Gun")) then role = "Sheriff" end
+            local enabled = false
+            local color = Color3.new(1,1,1)
+            if role == "Murder" and getgenv().DZ_ESP_Murder then enabled = true color = Theme.Murder
+            elseif role == "Sheriff" and getgenv().DZ_ESP_Sheriff then enabled = true color = Theme.Sheriff
+            elseif role == "Innocent" and getgenv().DZ_ESP_Inno then enabled = true color = Theme.Innocent end
+            highlight.Enabled = enabled
+            highlight.FillColor = color
+        end)
+    end
+    player.CharacterAdded:Connect(Setup)
+    if player.Character then Setup(player.Character) end
+end
+
+-- Gun ESP
+task.spawn(function()
+    while task.wait(1) do
+        if getgenv().DZ_ESP_Gun then
+            for _, v in pairs(workspace:GetDescendants()) do
+                if (v.Name == "Gun" or v.Name == "DroppedGun") and v:IsA("BasePart") then
+                    if not v:FindFirstChild("DZ_GunESP") then
+                        Instance.new("Highlight", v).Name = "DZ_GunESP"
+                    end
+                end
+            end
+        else
+            for _, v in pairs(workspace:GetDescendants()) do if v.Name == "DZ_GunESP" then v:Destroy() end end
+        end
+    end
+end)
+
+-- INTERFACE
+local function CreateMainUI()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "DarkzinV2_Main"
+    SafeParent(ScreenGui)
+
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 450, 0, 300)
+    MainFrame.Position = UDim2.new(0.5, -225, 0.5, -150)
+    MainFrame.BackgroundColor3 = Theme.MainBG
+    MainFrame.Parent = ScreenGui
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+    Instance.new("UIStroke", MainFrame).Color = Theme.Accent
+
+    local Header = Instance.new("Frame")
+    Header.Size = UDim2.new(1, 0, 0, 40)
+    Header.BackgroundColor3 = Theme.GlassBG
+    Header.Parent = MainFrame
+    Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 12)
+
+    local Title = Instance.new("TextLabel")
+    Title.Text = "PAINEL DARK V2 ATUALIZADO"
+    Title.Size = UDim2.new(1, -50, 1, 0)
+    Title.Position = UDim2.new(0, 15, 0, 0)
+    Title.TextColor3 = Theme.Text
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 16
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.BackgroundTransparency = 1
+    Title.Parent = Header
+
+    local MinBtn = Instance.new("TextButton")
+    MinBtn.Text = "-"
+    MinBtn.Size = UDim2.new(0, 30, 0, 30)
+    MinBtn.Position = UDim2.new(1, -35, 0, 5)
+    MinBtn.BackgroundColor3 = Theme.Border
+    MinBtn.TextColor3 = Theme.Text
+    MinBtn.Parent = Header
+    Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 6)
+
+    MakeDraggable(MainFrame)
+
+    -- Sistema de Abas
+    local TabContainer = Instance.new("Frame")
+    TabContainer.Size = UDim2.new(0, 120, 1, -40)
+    TabContainer.Position = UDim2.new(0, 0, 0, 40)
+    TabContainer.BackgroundColor3 = Theme.GlassBG
+    TabContainer.Parent = MainFrame
+    Instance.new("UICorner", TabContainer).CornerRadius = UDim.new(0, 0, 0, 12)
+
+    local TabLayout = Instance.new("UIListLayout", TabContainer)
+    TabLayout.Padding = UDim.new(0, 5)
+    TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    local PageContainer = Instance.new("Frame")
+    PageContainer.Size = UDim2.new(1, -130, 1, -50)
+    PageContainer.Position = UDim2.new(0, 125, 0, 45)
+    PageContainer.BackgroundTransparency = 1
+    PageContainer.Parent = MainFrame
+
+    local function CreatePage(name)
+        local Page = Instance.new("ScrollingFrame")
+        Page.Name = name
+        Page.Size = UDim2.new(1, 0, 1, 0)
+        Page.BackgroundTransparency = 1
+        Page.Visible = false
+        Page.ScrollBarThickness = 2
+        Page.Parent = PageContainer
+        local L = Instance.new("UIListLayout", Page)
+        L.Padding = UDim.new(0, 8)
+        L.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        return Page
+    end
+
+    local Pages = {
+        Combat = CreatePage("Combat"),
+        ESP = CreatePage("ESP"),
+        Info = CreatePage("Info")
+    }
+
+    local function CreateTabBtn(name, page)
+        local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(0, 110, 0, 35)
+        Btn.BackgroundColor3 = Theme.Border
+        Btn.Text = name
+        Btn.TextColor3 = Theme.Text
+        Btn.Font = Enum.Font.Gotham
+        Btn.Parent = TabContainer
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 6)
+        Btn.MouseButton1Click:Connect(function()
+            for _, p in pairs(Pages) do p.Visible = false end
+            page.Visible = true
+        end)
+    end
+
+    CreateTabBtn("Combate", Pages.Combat)
+    CreateTabBtn("ESP", Pages.ESP)
+    CreateTabBtn("Informações", Pages.Info)
+
+    local function CreateToggle(parent, text, stateVar, callback)
+        local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(0, 280, 0, 35)
+        Btn.BackgroundColor3 = Theme.GlassBG
+        Btn.Text = text .. ": " .. (stateVar and "ON" or "OFF")
+        Btn.TextColor3 = Theme.Text
+        Btn.Font = Enum.Font.Gotham
+        Btn.Parent = parent
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
+        local s = Instance.new("UIStroke", Btn)
+        s.Color = stateVar and Theme.Accent or Theme.Border
+        Btn.MouseButton1Click:Connect(function()
+            local newState = not Btn.Text:find("ON")
+            Btn.Text = text .. ": " .. (newState and "ON" or "OFF")
+            s.Color = newState and Theme.Accent or Theme.Border
+            callback(newState)
+        end)
+    end
+
+    -- Conteúdo Combate
+CreateToggle(Pages.Combat, "Aim Saliente", getgenv().DZ_AimSaliente, function(v) getgenv().DZ_AimSaliente = v end)
+    CreateToggle(Pages.Combat, "Auto Get Gun", getgenv().DZ_AutoGun, function(v) getgenv().DZ_AutoGun = v end)
+
+    -- Conteúdo ESP
+    CreateToggle(Pages.ESP, "ESP Inocentes", getgenv().DZ_ESP_Inno, function(v) getgenv().DZ_ESP_Inno = v end)
+    CreateToggle(Pages.ESP, "ESP Sheriff", getgenv().DZ_ESP_Sheriff, function(v) getgenv().DZ_ESP_Sheriff = v end)
+    CreateToggle(Pages.ESP, "ESP Murderer", getgenv().DZ_ESP_Murder, function(v) getgenv().DZ_ESP_Murder = v end)
+    CreateToggle(Pages.ESP, "ESP Arma", getgenv().DZ_ESP_Gun, function(v) getgenv().DZ_ESP_Gun = v end)
+
+    -- Conteúdo Info
+    local InfoLabel = Instance.new("TextLabel")
+    InfoLabel.Text = "Dev: Darkzin\nVersão: 2.2\nStatus: Ativado\nDiscord: " .. DISCORD_LINK
+    InfoLabel.Size = UDim2.new(0, 280, 0, 120)
+    InfoLabel.TextColor3 = Theme.TextMuted
+    InfoLabel.BackgroundTransparency = 1
+    InfoLabel.Font = Enum.Font.Gotham
+    InfoLabel.Parent = Pages.Info
+
+    Pages.Combat.Visible = true
+
+    local minimized = false
+    MinBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        PageContainer.Visible = not minimized
+        TabContainer.Visible = not minimized
+        MainFrame.Size = minimized and UDim2.new(0, 450, 0, 40) or UDim2.new(0, 450, 0, 300)
+    end)
+end
+
+-- SISTEMA DE KEY
+local function CreateKeyUI()
+    local KeyGui = Instance.new("ScreenGui")
+    KeyGui.Name = "DarkzinKey"
+    SafeParent(KeyGui)
+
+    local KeyFrame = Instance.new("Frame")
+    KeyFrame.Size = UDim2.new(0, 300, 0, 240)
+    KeyFrame.Position = UDim2.new(0.5, -150, 0.5, -120)
+    KeyFrame.BackgroundColor3 = Theme.MainBG
+    KeyFrame.Parent = KeyGui
+    Instance.new("UICorner", KeyFrame).CornerRadius = UDim.new(0, 12)
+    Instance.new("UIStroke", KeyFrame).Color = Theme.Accent
+
+    local Title = Instance.new("TextLabel")
+    Title.Text = "SISTEMA DE ACESSO"
+    Title.Size = UDim2.new(1, 0, 0, 40)
+    Title.TextColor3 = Theme.Text
+    Title.Font = Enum.Font.GothamBold
+    Title.BackgroundTransparency = 1
+    Title.Parent = KeyFrame
+
+    local Input = Instance.new("TextBox")
+    Input.Size = UDim2.new(0, 240, 0, 40)
+    Input.Position = UDim2.new(0.5, -120, 0.3, 0)
+    Input.BackgroundColor3 = Theme.GlassBG
+    Input.TextColor3 = Theme.Text
+    Input.PlaceholderText = "Digite a chave..."
+    Input.Text = ""
+    Input.Parent = KeyFrame
+    Instance.new("UICorner", Input).CornerRadius = UDim.new(0, 8)
+
+    local Verify = Instance.new("TextButton")
+    Verify.Text = "VERIFICAR"
+    Verify.Size = UDim2.new(0, 240, 0, 40)
+    Verify.Position = UDim2.new(0.5, -120, 0.5, 0)
+    Verify.BackgroundColor3 = Theme.Accent
+    Verify.TextColor3 = Theme.Text
+    Verify.Font = Enum.Font.GothamBold
+    Verify.Parent = KeyFrame
+    Instance.new("UICorner", Verify).CornerRadius = UDim.new(0, 8)
+
+    local DiscordBtn = Instance.new("TextButton")
+    DiscordBtn.Text = "ENTRAR NO DISCORD"
+    DiscordBtn.Size = UDim2.new(0, 240, 0, 40)
+    DiscordBtn.Position = UDim2.new(0.5, -120, 0.7, 0)
+    DiscordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    DiscordBtn.TextColor3 = Theme.Text
+    DiscordBtn.Font = Enum.Font.GothamBold
+    DiscordBtn.Parent = KeyFrame
+    Instance.new("UICorner", DiscordBtn).CornerRadius = UDim.new(0, 8)
+
+    DiscordBtn.MouseButton1Click:Connect(function()
+        setclipboard(DISCORD_LINK)
+        pcall(function() game:GetService("GuiService"):OpenBrowserWindow(DISCORD_LINK) end)
+    end)
+
+    Verify.MouseButton1Click:Connect(function()
+        if Input.Text == CORRECT_KEY then
+            KeyGui:Destroy()
+            CreateMainUI()
+            for _, p in pairs(Players:GetPlayers()) do if p ~= LocalPlayer then ApplyESP(p) end end
+            Players.PlayerAdded:Connect(ApplyESP)
+        else
+            Verify.Text = "CHAVE INCORRETA!"
+            task.wait(1)
+            Verify.Text = "VERIFICAR"
+        end
+    end)
+end
+
+CreateKeyUI()
+print("painel dark v2 atualizado: Carregado com sucesso.")
