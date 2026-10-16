@@ -1,0 +1,157 @@
+-- [[ DARK HUB - Script para Delta Executor ]] --
+
+local Rayfield = loadstring(game:HttpGet('https://sirguill.github.io/Rayfield-Library/'))()
+
+-- 1. Criação da Janela Principal
+local Window = Rayfield:CreateWindow({
+   Name = "DARK HUB | Versão 1.0",
+   LoadingTitle = "Carregando DARK HUB...",
+   LoadingSubtitle = "Agente: Sistema Infiltrado",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "DarkHubConfig", 
+      FileName = "Settings.json"
+   },
+   KeySystem = true, -- Sistema de Key solicitado
+   KeySystemTitle = "DARK HUB - Validação",
+   KeySystemValue = "DARKHUB",
+   KeySystemText = "Insira a Key para acessar o Menu:",
+})
+
+-- Tab Geral de Informações
+local GeneralTab = Window:CreateTab("Informações", 4483362458) -- Ícone de info
+section = GeneralTab:CreateSection("Status do Hub")
+
+GeneralTab:CreateLabel("Status: Operacional")
+GeneralTab:CreateLabel("Bugs: Nenhum reportado berger")
+GeneralTab:CreateParagraph({Title = "Sobre o DARK HUB", Content = "O Dark Hub é a ferramenta definitiva para otimização de gameplay. Utilize com cautela para evitar detecções."})
+
+-- Função de verificação de jogo
+local function checkGame(gameName)
+    if game.PlaceId == 185655149 then -- Exemplo ID Arsenal
+        return "Arsenal"
+    elseif game.PlaceId == 2542665780 then -- Exemplo ID Murder Mystery
+        return "MM2"
+    elseif game.PlaceId == 11201399637 then -- Exemplo ID Roube um Ovo
+        return "Steal the Egg"
+    else
+        return "Unknown"
+    end
+end
+
+-- ABA DE JOGOS
+local GamesTab = Window:CreateTab("Jogos", 4483362458)
+section = GamesTab:CreateSection("Escolha seu Hack")
+
+-- SEÇÃO: ARSENAL
+local ArsenalBtn = GamesTab:CreateButton({
+   Name = "Arsenal (MODS)",
+   Callback = function()
+       local gameName = checkGame() 
+       -- O jogo real de exemplo tem IDs diferentes, ajuste conforme a sessão atual
+       if game.Name:find("Arsenal") then
+           Rayfield:Notify({
+              Title = "DARK HUB",
+              Content = "Iniciando Hacks do Arsenal...",
+              Duration = 3,
+              Image = 4483362458,
+           })
+           -- Aqui abriria a sub-interface de hacks
+       else
+           Rayfield:Notify({
+              Title = "ERRO!",
+              Content = "Você não está no jogo Arsenal!",
+              Duration = 5,
+              Image = 4483362458,
+           })
+       end
+   end,
+})
+
+-- SEÇÃO: MURDER MYSTERY
+local MM2Btn = GamesTab:CreateButton({
+   Name = "MM2 (MODS)",
+   Callback = function()
+       if game.Name:find("Murder") then
+           Rayfield:Notify({
+              Title = "DARK HUB",
+              Content = "Iniciando Hacks do MM2...",
+              Duration = 3,
+              Image = 4483362458,
+           })
+       else
+           Rayfield:Notify({
+              Title = "ERRO!",
+              Content = "Você não está no Murder Mystery!",
+              Duration = 5,
+              Image = 4483362458,
+           })
+       end
+   end,
+})
+
+-- SEÇÃO: ROUBE UM OVO
+local EGGBtn = GamesTab:CreateButton({
+   Name = "Roube um Ovo (MODS)",
+   Callback = function()
+       if game.Name:find("Egg") then
+           Rayfield:Notify({
+              Title = "DARK HUB",
+              Content = "Iniciando Hacks de Roubo de Ovos...",
+              Duration = 3,
+              Image = 4483362458,
+           })
+       else
+           Rayfield:Notify({
+              Title = "ERRO!",
+              Content = "Você não está no jogo Roube um Ovo!",
+              Duration = 5,
+              Image = 4483362458,
+           })
+       end
+   end,
+})
+
+-- INTERFACE APELONA (Onde os hacks acontecem)
+-- Para fins de exemplo, criamos abas específicas que só abrem após a ativação
+local SettingsTab = Window:CreateTab("Configurações Avançadas", 4483362458)
+section = SettingsTab:CreateSection("Configs Apelonantes")
+
+SettingsTab:CreateToggle({
+   Name = "Aimbot (Silent)",
+   CurrentValue = false,
+   Flag = "AimbotToggle", 
+   Callback = function(Value)
+      print("Aimbot set to: ", Value)
+      -- lógica do aimbot aqui
+   end,
+})
+
+SettingsTab:CreateSlider({
+   Name = "Velocidade de Movimento (Walkspeed)",
+   Range = {16, 200},
+   Increment = 1,
+   CurrentValue = 16,
+   Flag = "WSlider", 
+   Callback = function(Value)
+      game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = Value
+   end,
+})
+
+SettingsTab:CreateButton({
+   Name = "Voo Infinito (Fly)",
+   Callback = function()
+      -- Lógica de voo simplificada
+      print("Ativando Fly Mode...")
+   end,
+})
+
+-- Tecla para abrir / fechar o menu (Configuração do Delta usually é tecla DIREITA ou INSERT)
+-- A biblioteca Rayfield já cuida do Drawer automaticamente.
+
+Rayfield:Notify({
+   Title = "DARK HUB",
+   Content = "Carregado com Sucesso!",
+   Duration = 5,
+   Image = 4483362458,
+})
