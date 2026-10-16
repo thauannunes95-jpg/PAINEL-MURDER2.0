@@ -1,0 +1,331 @@
+--[[
+    DARKZIN XITADO - MM2 INFINITE VOID EDITION
+    Versão: 3.2 (Stability Update) | Data: 16/10/2026
+    Foco: UI Estática, Botão Minimizar e Correção de Abas
+]]
+
+local Theme = {
+    MainBG = Color3.fromRGB(2, 2, 8),
+    GlassBG = Color3.fromRGB(12, 12, 22),
+    Accent = Color3.fromRGB(0, 162, 255),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextMuted = Color3.fromRGB(140, 140, 170),
+    Border = Color3.fromRGB(35, 35, 55),
+    Murder = Color3.fromRGB(255, 30, 60),
+    Sheriff = Color3.fromRGB(0, 180, 255),
+    Innocent = Color3.fromRGB(50, 255, 120),
+    Gun = Color3.fromRGB(255, 215, 0)
+}
+
+-- Estados Globais (Iniciando tudo em FALSE)
+getgenv().DZ_Config = {
+    ESP = { Inno = false, Sheriff = false, Murder = false, Gun = false, Names = false },
+    Combat = { SilentAim = false, AutoGun = false },
+    Info = { Version = "3.2", Creator = "DarkzinXITADO" }
+}
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- Utilitário de Parentesco
+local function SafeParent(gui)
+    local targets = {game:GetService("CoreGui"), LocalPlayer:WaitForChild("PlayerGui")}
+    for _, target in pairs(targets) do
+        pcall(function() gui.Parent = target end)
+    end
+end
+
+-- // LÓGICA DE COMBATE (Silent Aim)
+local function GetClosestPlayer()
+    local closest = nil
+    local dist = 150
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+            local pos, onScreen = Camera:WorldToViewportPoint(player.Character.Head.Position)
+            if onScreen then
+                local magnitude = (Vector2.new(pos.X, pos.Y) - UserInputService:GetMouseLocation()).Magnitude
+                if magnitude < dist then closest = player dist = magnitude end
+            end
+        end
+    end
+    return closest
+end
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    if not checkcaller() and method == "FireServer" and getgenv().DZ_Config.Combat.SilentAim then
+        if self.Name:lower():find("shoot") or self.Name:lower():find("fire") then
+            local target = GetClosestPlayer()
+            if target and target.Character and target.Character:FindFirstChild("Head") then
+                args[1] = target.Character.Head.Position
+                return oldNamecall(self, unpack(args))
+            end
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+
+-- // UI PRINCIPAL
+local function CreateMainUI()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "DarkzinVoidGui"
+    SafeParent(ScreenGui)
+
+    -- Main Frame (ESTÁTICO - Sem MakeDraggable)
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 550, 0, 380)
+    MainFrame.Position = UDim2.new(0.5, -275, 0.5, -190)
+    MainFrame.BackgroundColor3 = Theme.MainBG
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Parent = ScreenGui
+    Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 15)
+    local MainStroke = Instance.new("UIStroke", MainFrame)
+    MainStroke.Color = Theme.Accent
+    MainStroke.Thickness = 2
+
+    -- Header
+    local Header = Instance.new("Frame")
+    Header.Size = UDim2.new(1, 0, 0, 60)
+    Header.BackgroundColor3 = Theme.GlassBG
+    Header.BorderSizePixel = 0
+    Header.Parent = MainFrame
+    Instance.new("UICorner", Header).CornerRadius = UDim.new(0, 15)
+
+    local Title = Instance.new("TextLabel")
+    Title.Text = "DARKZIN XITADO <font color='#00A2FF'>VOID</font>"
+    Title.RichText = true
+    Title.Size = UDim2.new(1, -120, 1, 0)
+    Title.Position = UDim2.new(0, 20, 0, 0)
+    Title.TextColor3 = Theme.Text
+    Title.Font = Enum.Font.GothamBold
+    Title.TextSize = 20
+    Title.TextXAlignment = Enum.TextXAlignment.Left
+    Title.BackgroundTransparency = 1
+    Title.Parent = Header
+
+    -- Botão Fechar
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Text = "✕"
+    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+    CloseBtn.Position = UDim2.new(1, -40, 0, 15)
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    CloseBtn.TextColor3 = Theme.Text
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.Parent = Header
+    Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 8)
+    CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+    -- Botão Minimizar
+    local MinBtn = Instance.new("TextButton")
+    MinBtn.Text = "—"
+    MinBtn.Size = UDim2.new(0, 30, 0, 30)
+    MinBtn.Position = UDim2.new(1, -75, 0, 15)
+    MinBtn.BackgroundColor3 = Theme.GlassBG
+    MinBtn.TextColor3 = Theme.Text
+    MinBtn.Font = Enum.Font.GothamBold
+    MinBtn.Parent = Header
+    Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 8)
+
+    -- Sidebar
+    local Sidebar = Instance.new("Frame")
+    Sidebar.Size = UDim2.new(0, 150, 1, -60)
+    Sidebar.Position = UDim2.new(0, 0, 0, 60)
+    Sidebar.BackgroundColor3 = Theme.GlassBG
+    Sidebar.BorderSizePixel = 0
+    Sidebar.Parent = MainFrame
+    Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 0, 0, 15)
+
+    local SideLayout = Instance.new("UIListLayout", Sidebar)
+    SideLayout.Padding = UDim.new(0, 10)
+    SideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    SideLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+
+    -- Container de Páginas
+    local PageContainer = Instance.new("Frame")
+    PageContainer.Size = UDim2.new(1, -160, 1, -70)
+    PageContainer.Position = UDim2.new(0, 155, 0, 65)
+    PageContainer.BackgroundTransparency = 1
+    PageContainer.Parent = MainFrame
+
+    local function CreatePage(name)
+        local Page = Instance.new("ScrollingFrame")
+        Page.Size = UDim2.new(1, 0, 1, 0)
+        Page.BackgroundTransparency = 1
+        Page.Visible = false
+        Page.ScrollBarThickness = 2
+        Page.Parent = PageContainer
+        local Layout = Instance.new("UIListLayout", Page)
+        Layout.Padding = UDim.new(0, 10)
+        Layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+        return Page
+    end
+
+    local Pages = { 
+        Visibilidade = CreatePage("Vis"), 
+        Combate = CreatePage("Combat"), 
+        Informacoes = CreatePage("Info") 
+    }
+
+    local function CreateTabBtn(name, page)
+        local Btn = Instance.new("TextButton")
+        Btn.Size = UDim2.new(0, 130, 0, 40)
+        Btn.BackgroundColor3 = Theme.GlassBG
+        Btn.Text = name
+        Btn.TextColor3 = Theme.TextMuted
+        Btn.Font = Enum.Font.GothamMedium
+        Btn.Parent = Sidebar
+        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 8)
+        
+        Btn.MouseButton1Click:Connect(function()
+            for _, p in pairs(Pages) do p.Visible = false end
+            page.Visible = true
+        end)
+    end
+
+    -- Toggle Corrigido
+    local function CreateToggle(parent, text, configKey, category)
+        local ToggleFrame = Instance.new("TextButton")
+        ToggleFrame.Size = UDim2.new(0, 350, 0, 45)
+        ToggleFrame.BackgroundColor3 = Theme.GlassBG
+        ToggleFrame.Text = ""
+        ToggleFrame.Parent = parent
+        Instance.new("UICorner", ToggleFrame).CornerRadius = UDim.new(0, 10)
+
+        local Label = Instance.new("TextLabel")
+        Label.Text = text
+        Label.Size = UDim2.new(1, -60, 1, 0)
+        Label.Position = UDim2.new(0, 15, 0, 0)
+        Label.TextColor3 = Theme.Text
+        Label.Font = Enum.Font.Gotham
+        Label.TextXAlignment = Enum.TextXAlignment.Left
+        Label.BackgroundTransparency = 1
+        Label.Parent = ToggleFrame
+
+        local Indicator = Instance.new("Frame")
+        Indicator.Size = UDim2.new(0, 40, 0, 20)
+        Indicator.Position = UDim2.new(1, -55, 0.5, -10)
+        Indicator.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        Indicator.Parent = ToggleFrame
+        Instance.new("UICorner", Indicator).CornerRadius = UDim.new(1, 0)
+
+        local Dot = Instance.new("Frame")
+        Dot.Size = UDim2.new(0, 16, 0, 16)
+        Dot.Position = UDim2.new(0, 2, 0.5, -8)
+        Dot.BackgroundColor3 = Color3.fromRGB(100, 100, 120)
+        Dot.Parent = Indicator
+        Instance.new("UICorner", Dot).CornerRadius = UDim.new(1, 0)
+
+        -- Sincronização Inicial
+        if getgenv().DZ_Config[category][configKey] then
+            Dot.Position = UDim2.new(0, 22, 0.5, -8)
+            Dot.BackgroundColor3 = Theme.Accent
+        end
+
+        ToggleFrame.MouseButton1Click:Connect(function()
+            local newState = not getgenv().DZ_Config[category][configKey]
+            getgenv().DZ_Config[category][configKey] = newState
+            TweenService:Create(Dot, TweenInfo.new(0.2), {
+                Position = newState and UDim2.new(0, 22, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+                BackgroundColor3 = newState and Theme.Accent or Color3.fromRGB(100, 100, 120)
+            }):Play()
+        end)
+    end
+
+    -- Criando Abas e Botões
+    CreateTabBtn("VISIBILIDADE", Pages.Visibilidade)
+    CreateTabBtn("COMBATE", Pages.Combate)
+    CreateTabBtn("INFORMAÇÕES", Pages.Informacoes)
+
+    CreateToggle(Pages.Visibilidade, "ESP Innocent", "Inno", "ESP")
+    CreateToggle(Pages.Visibilidade, "ESP Sheriff", "Sheriff", "ESP")
+    CreateToggle(Pages.Visibilidade, "ESP Murderer", "Murder", "ESP")
+    CreateToggle(Pages.Visibilidade, "ESP Gun", "Gun", "ESP")
+    CreateToggle(Pages.Visibilidade, "Mostrar Nomes", "Names", "ESP")
+    
+    CreateToggle(Pages.Combate, "Silent Aim (Void)", "SilentAim", "Combat")
+    CreateToggle(Pages.Combate, "Auto Get Gun", "AutoGun", "Combat")
+
+    local InfoLabel = Instance.new("TextLabel")
+    InfoLabel.Size = UDim2.new(0, 350, 0, 100)
+    InfoLabel.Text = "DARKZIN XITADO v3.2\n\nCriador: DarkzinXITADO\nStatus: Estável\nEstética: Satoru Gojo"
+    InfoLabel.TextColor3 = Theme.TextMuted
+    InfoLabel.Font = Enum.Font.GothamMedium
+    InfoLabel.TextSize = 16
+    InfoLabel.BackgroundTransparency = 1
+    InfoLabel.Parent = Pages.Informacoes
+
+    -- Lógica de Minimizar
+    MinBtn.MouseButton1Click:Connect(function()
+        MainFrame.Visible = false
+        local OpenBtn = Instance.new("TextButton")
+        OpenBtn.Text = "OPEN VOID"
+        OpenBtn.Size = UDim2.new(0, 100, 0, 35)
+        OpenBtn.Position = UDim2.new(0.5, -50, 0.1, 0)
+        OpenBtn.BackgroundColor3 = Theme.Accent
+        OpenBtn.TextColor3 = Theme.Text
+        OpenBtn.Font = Enum.Font.GothamBold
+        OpenBtn.Parent = ScreenGui
+        Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(0, 8)
+        
+        OpenBtn.MouseButton1Click:Connect(function()
+            MainFrame.Visible = true
+            OpenBtn:Destroy()
+        end)
+    end)
+
+    Pages.Visibilidade.Visible = true
+end
+
+-- // SISTEMA DE KEY
+local function CreateKeyUI()
+    local KeyGui = Instance.new("ScreenGui")
+    KeyGui.Name = "DarkzinKey"
+    SafeParent(KeyGui)
+
+    local KeyFrame = Instance.new("Frame")
+    KeyFrame.Size = UDim2.new(0, 300, 0, 180)
+    KeyFrame.Position = UDim2.new(0.5, -150, 0.5, -90)
+    KeyFrame.BackgroundColor3 = Theme.MainBG
+    KeyFrame.Parent = KeyGui
+    Instance.new("UICorner", KeyFrame).CornerRadius = UDim.new(0, 15)
+    Instance.new("UIStroke", KeyFrame).Color = Theme.Accent
+
+    local KeyInput = Instance.new("TextBox")
+    KeyInput.Size = UDim2.new(0, 240, 0, 40)
+    KeyInput.Position = UDim2.new(0.5, -120, 0.4, -20)
+    KeyInput.BackgroundColor3 = Theme.GlassBG
+    KeyInput.TextColor3 = Theme.Text
+    KeyInput.PlaceholderText = "Insira a Key..."
+    KeyInput.Text = ""
+    KeyInput.Parent = KeyFrame
+    Instance.new("UICorner", KeyInput).CornerRadius = UDim.new(0, 8)
+
+    local VerifyBtn = Instance.new("TextButton")
+    VerifyBtn.Text = "VERIFICAR"
+    VerifyBtn.Size = UDim2.new(0, 240, 0, 40)
+    VerifyBtn.Position = UDim2.new(0.5, -120, 0.6, 10)
+    VerifyBtn.BackgroundColor3 = Theme.Accent
+    VerifyBtn.TextColor3 = Theme.Text
+    VerifyBtn.Parent = KeyFrame
+    Instance.new("UICorner", VerifyBtn).CornerRadius = UDim.new(0, 8)
+
+    VerifyBtn.MouseButton1Click:Connect(function()
+        if KeyInput.Text == "DARK" then
+            KeyGui:Destroy()
+            CreateMainUI()
+        else
+            VerifyBtn.Text = "KEY ERRADA!"
+            task.wait(2)
+            VerifyBtn.Text = "VERIFICAR"
+        end
+    end)
+end
+
+CreateKeyUI()
